@@ -4,7 +4,7 @@ import os
 import sys
 from hwp_parser import parse_with_kordoc
 from doc_model import build_doc_from_parse_result
-from ai_client import run_gemini_check
+from ai_client import run_ai_check
 from excel_exporter import export_to_excel, build_rows_from_doc
 from ai_result_utils import load_ai_result, ai_errors_to_rows
 
@@ -43,7 +43,7 @@ def main():
             payload = doc
             if args.ai:
                 print("AI 오타 검증 시작…")
-                errors = run_gemini_check(doc)
+                errors = run_ai_check(doc)
                 payload = {
                     "source": doc.get("file"),
                     "metadata": doc.get("metadata"),

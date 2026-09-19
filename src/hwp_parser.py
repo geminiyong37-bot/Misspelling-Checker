@@ -9,11 +9,20 @@ def resource_path(relative):
     base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, relative)
 
-# 개발 환경에서는 상위 레벨의 kordoc을 바로 참조하고, 빌드된 환경에서는 복사된 _MEIPASS 내의 kordoc 참조
-if hasattr(sys, '_MEIPASS'):
-    KORDOC_PATH = resource_path(os.path.join("kordoc", "dist", "cli.js"))
-else:
-    KORDOC_PATH = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "kordoc", "dist", "cli.js"))
+def get_kordoc_path():
+    """현재 실행 환경에서 사용할 kordoc CLI 경로를 반환한다."""
+    if hasattr(sys, '_MEIPASS'):
+        return resource_path(os.path.join("kordoc", "dist", "cli.cjs"))
+
+    kordoc_home = os.environ.get("KORDOC_HOME")
+    if not kordoc_home:
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        kordoc_home = os.path.abspath(os.path.join(project_root, "..", "Archive", "kordoc"))
+
+    return os.path.join(kordoc_home, "dist", "cli.cjs")
+
+
+KORDOC_PATH = get_kordoc_path()
 
 
 def parse_with_kordoc(file_path):
@@ -52,8 +61,15 @@ def parse_with_kordoc(file_path):
         }
 
     # 2. kordoc CLI handling (HWP, HWPX, PDF, DOCX)
-    # command: node C:\Antigravity\kordoc\dist\cli.js <file> --format json
-    cmd = ["node", KORDOC_PATH, abs_path, "--format", "json"]
+    kordoc_path = get_kordoc_path()
+    if not os.path.isfile(kordoc_path):
+        raise FileNotFoundError(
+            "kordoc CLI를 찾을 수 없습니다: "
+            f"{kordoc_path}. C:\\MyProjects\\Archive\\kordoc을 확인하거나 "
+            "KORDOC_HOME 환경변수를 설정해 주세요."
+        )
+
+    cmd = ["node", kordoc_path, abs_path, "--format", "json"]
     
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', check=True)

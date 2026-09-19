@@ -1,4 +1,5 @@
 import os
+import re
 
 import sys
 
@@ -30,8 +31,35 @@ def get_rag_instruction_text():
         print(f"오류: RAG 파일을 읽는 중 문제가 발생했습니다: {e}")
         return ""
 
-def build_rag_prompt_section():
+OPTION_SECTION_MAP = {
+    "check_date_format": (1, 2, 3),
+    "suggest_plain_language": (7,),
+    "improve_style": (8,),
+}
+
+
+def get_rag_instruction_sections():
     text = get_rag_instruction_text()
     if not text:
+        return {}
+    matches = re.finditer(
+        r"(?ms)^(\d+)\.\s+.*?(?=^\d+\.\s+|\Z)",
+        text,
+    )
+    return {int(match.group(1)): match.group(0).strip() for match in matches}
+
+
+def build_rag_prompt_section(review_options=None):
+    options = review_options or {}
+    selected_numbers = []
+    for option_name, section_numbers in OPTION_SECTION_MAP.items():
+        if options.get(option_name):
+            selected_numbers.extend(section_numbers)
+    if not selected_numbers:
         return ""
-    return f"\n[참고: 공문서 작성 지침]\n{text}\n"
+
+    sections = get_rag_instruction_sections()
+    selected_text = [sections[number] for number in selected_numbers if number in sections]
+    if not selected_text:
+        return ""
+    return "\n[선택 검사 모드 지침]\n" + "\n\n".join(selected_text) + "\n"

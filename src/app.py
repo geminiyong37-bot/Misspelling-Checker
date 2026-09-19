@@ -315,10 +315,11 @@ class CheckWorker(QThread):
     overall_status = pyqtSignal(str)
     finished_all = pyqtSignal()
 
-    def __init__(self, items, parent_window):
+    def __init__(self, items, parent_window, review_options=None):
         super().__init__()
         self.items = items
         self.parent_window = parent_window
+        self.review_options = dict(review_options or {})
         self.cancel_event = threading.Event()
 
     def cancel(self):
@@ -378,7 +379,12 @@ class CheckWorker(QThread):
 
             try:
                 log_debug(f"[{item['name']}] AI analysis started (Sentences: {len(doc.get('sentences', []))})")
-                errors = run_ai_check(doc, progress_callback=progress_cb, stop_event=self.cancel_event)
+                errors = run_ai_check(
+                    doc,
+                    progress_callback=progress_cb,
+                    stop_event=self.cancel_event,
+                    review_options=self.review_options,
+                )
                 log_debug(f"[{item['name']}] AI analysis finished. Errors found: {len(errors)}")
             except InterruptedError:
                 log_debug(f"[{item['name']}] Analysis interrupted by user.")
@@ -453,6 +459,30 @@ class MainWindow(QMainWindow):
         self.drop_area.files_dropped.connect(self._on_drop)
         self.drop_area.btn_pick.clicked.connect(self._pick_files)
 
+        options_frame = QFrame()
+        options_frame.setObjectName("optionsFrame")
+        options_layout = QVBoxLayout()
+        options_layout.setContentsMargins(10, 7, 10, 7)
+        options_layout.setSpacing(5)
+        options_title = QLabel("선택 검사 (기본 꺼짐)")
+        options_title.setObjectName("optionsTitle")
+        options_row = QHBoxLayout()
+        options_row.setSpacing(12)
+
+        self.cb_date_format = QCheckBox("날짜·숫자")
+        self.cb_plain_language = QCheckBox("순화어")
+        self.cb_style = QCheckBox("문체·표현")
+        self.cb_date_format.setToolTip("날짜, 시간, 숫자 표기를 공문서 기준으로 검사합니다.")
+        self.cb_plain_language.setToolTip("어려운 행정 용어를 쉬운 말로 바꾸는 제안을 합니다.")
+        self.cb_style.setToolTip("번역투와 상투적 표현을 다듬는 제안을 합니다.")
+        for checkbox in (self.cb_date_format, self.cb_plain_language, self.cb_style):
+            checkbox.setChecked(False)
+            options_row.addWidget(checkbox)
+        options_row.addStretch(1)
+        options_layout.addWidget(options_title)
+        options_layout.addLayout(options_row)
+        options_frame.setLayout(options_layout)
+
         list_container = QFrame()
         list_container.setObjectName("listContainer")
         list_layout = QVBoxLayout()
@@ -505,6 +535,7 @@ class MainWindow(QMainWindow):
         root.addWidget(title)
         root.addWidget(divider)
         root.addWidget(self.drop_area)
+        root.addWidget(options_frame)
         root.addWidget(self.status_lbl)
         root.addWidget(list_container, stretch=1)
         root.addLayout(btn_row)
@@ -552,6 +583,8 @@ class MainWindow(QMainWindow):
             #progressBar { background: #E6D6C7; border: 1px solid #E6D6C7; height: 6px; border-radius: 3px; }
             #progressBar::chunk { background: #C1A062; border-radius: 3px; margin: 0px; }
             #statusLabel { color: #A1887F; }
+            #optionsFrame { background: #F3E9DC; border: 1px solid #DDCDBE; border-radius: 8px; }
+            #optionsTitle { color: #6D4C41; font-size: 10px; font-weight: 700; }
             #btnPrimary { background: #C1A062; color: #5D4037; border: none; padding: 8px 24px; border-radius: 10px; font-weight: 700; }
             #btnPrimary:hover { background: #B39250; }
             #btnPrimary:pressed { background: #A88442; }
@@ -652,8 +685,13 @@ class MainWindow(QMainWindow):
         if not pending: return
         self.is_processing = True
         self.all_results = []
+        self._set_review_options_enabled(False)
 
-        self.worker = CheckWorker(pending, self) # self (MainWindow)를 parent_window로 전달
+        self.worker = CheckWorker(
+            pending,
+            self,
+            review_options=self.get_review_options(),
+        )
         self.worker.file_progress.connect(self._on_progress)
         self.worker.file_status.connect(self._on_status)
         self.worker.file_done.connect(self._on_done)
@@ -712,6 +750,7 @@ class MainWindow(QMainWindow):
 
     def _on_finished_all(self):
         self.is_processing = False
+        self._set_review_options_enabled(True)
         total_errors = 0
         for item in self.file_items:
             total_errors += len(item.get("results", []))
@@ -733,6 +772,17 @@ class MainWindow(QMainWindow):
                 self, "검사 완료", 
                 f"검사가 완료되었습니다.\n총 {total_errors}건 발견.\n결과 다운로드 버튼을 눌러 저장하세요."
             )
+
+    def get_review_options(self):
+        return {
+            "check_date_format": self.cb_date_format.isChecked(),
+            "suggest_plain_language": self.cb_plain_language.isChecked(),
+            "improve_style": self.cb_style.isChecked(),
+        }
+
+    def _set_review_options_enabled(self, enabled):
+        for checkbox in (self.cb_date_format, self.cb_plain_language, self.cb_style):
+            checkbox.setEnabled(enabled)
 
     def _clear_all(self):
         if self.is_processing: return

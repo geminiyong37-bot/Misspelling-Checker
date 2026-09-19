@@ -8,14 +8,14 @@ set ISCC="C:\Inno Setup 6\ISCC.exe"
 echo [1/4] PyInstaller 빌드 중 (Main App)...
 pyinstaller "%SCRIPT_DIR%build.spec" --noconfirm --distpath "%STAGING%"
 if errorlevel 1 (
-    echo PyInstaller 실패 (Main App)
+    echo PyInstaller 실패 - Main App
     exit /b 1
 )
 
 echo [2/4] PyInstaller 빌드 중 (Key Verifier)...
 pyinstaller --noconfirm --onefile --console --name verify_key "%SCRIPT_DIR%src\verify_key.py" --distpath "%STAGING%"
 if errorlevel 1 (
-    echo PyInstaller 실패 (Key Verifier)
+    echo PyInstaller 실패 - Key Verifier
     exit /b 1
 )
 

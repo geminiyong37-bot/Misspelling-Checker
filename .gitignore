@@ -13,3 +13,6 @@ verify_key.exe
 **/build/
 **/dist/
 *.exe
+stdout_test.txt
+stderr_test.txt
+.worktrees/

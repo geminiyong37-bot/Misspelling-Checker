@@ -25,6 +25,23 @@ HWP, HWPX, PDF 등 다양한 문서에서 오타와 문법 오류를 AI가 대�
 - **AI의 한계**: AI는 가끔 실수를 할 수 있습니다. 중요한 문서는 최종적으로 사람이 한 번 더 확인하는 것을 권장합니다.
 - **API 보안**: 가급적 개인 유료 API 키를 사용하시는 것이 보안과 속도 면에서 유리합니다. (무료 API는 학습용으로 데이터가 활용될 수 있습니다.)
 
+## 개발 및 빌드
+
+개발 환경에는 Python 3, Node.js 18 이상, Inno Setup 6가 필요합니다. Python 패키지는 다음 명령으로 설치합니다.
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+문서 파서의 기본 위치는 `C:\MyProjects\Archive\kordoc`입니다. 다른 위치를 사용할 때는 `KORDOC_HOME` 환경변수에 kordoc 디렉터리를 지정합니다.
+
+```powershell
+$env:KORDOC_HOME = "D:\tools\kordoc"
+python src\app.py
+```
+
+설치 파일은 프로젝트 루트에서 `build.bat`을 실행해 생성합니다.
+
 ## 문의 및 오류 신고
 
 사용 중 발생하는 오류나 AI의 실수, 기능 개선 제안은 아래로 연락해 주세요.

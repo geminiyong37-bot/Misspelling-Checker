@@ -7,9 +7,9 @@ a = Analysis(
     pathex=['src'],
     binaries=[],
     datas=[
-        ('../kordoc/dist', 'kordoc/dist'),
-        ('../kordoc/node_modules', 'kordoc/node_modules'),
-        ('../kordoc/package.json', 'kordoc'),
+        ('../Archive/kordoc/dist', 'kordoc/dist'),
+        ('../Archive/kordoc/node_modules', 'kordoc/node_modules'),
+        ('../Archive/kordoc/package.json', 'kordoc'),
         ('docs/공문서_지침_압축.txt', 'docs'),
         ('assets/app-icon.png', 'assets'),
     ],
