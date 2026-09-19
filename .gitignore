@@ -16,3 +16,8 @@ verify_key.exe
 stdout_test.txt
 stderr_test.txt
 .worktrees/
+
+# 배포용 설치 파일만 저장소에 포함합니다.
+!Output/
+Output/*
+!Output/AI_Word_Speller_Setup.exe
