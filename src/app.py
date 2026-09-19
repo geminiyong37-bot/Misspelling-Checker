@@ -183,28 +183,6 @@ class DropArea(QFrame):
         self.setObjectName("dropArea")
         self._build_ui()
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        if not getattr(self, "_api_checked", False):
-            self._api_checked = True
-            
-            # Show Welcome popup if needed
-            config = _load_config()
-            log_debug(f"Config loaded: show_welcome={config.get('show_welcome')}")
-            if config.get("show_welcome", True):
-                log_debug("Showing WelcomeDialog...")
-                dlg = WelcomeDialog(self.window())
-                if dlg.exec() == QDialog.DialogCode.Accepted:
-                    log_debug("WelcomeDialog accepted.")
-                    if dlg.dont_show_cb.isChecked():
-                        log_debug("User checked 'Don't show again'.")
-                        config["show_welcome"] = False
-                        _save_config(config)
-                else:
-                    log_debug("WelcomeDialog rejected/closed.")
-            
-            QTimer.singleShot(0, self.window()._ensure_api_key)
-
     def _build_ui(self):
         layout = QVBoxLayout()
         layout.setContentsMargins(18, 14, 18, 14)
@@ -458,7 +436,31 @@ class MainWindow(QMainWindow):
         self.file_items = []
         self.is_processing = False
         self.all_results = []
-        self._api_checked = False
+        self._setup_scheduled = False
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._setup_scheduled:
+            self._setup_scheduled = True
+            QTimer.singleShot(0, self._initial_setup)
+
+    def _initial_setup(self):
+        config = _load_config()
+        log_debug(f"Config loaded: show_welcome={config.get('show_welcome')}")
+
+        if config.get("show_welcome", True):
+            log_debug("Showing WelcomeDialog...")
+            dlg = WelcomeDialog(self)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                log_debug("WelcomeDialog accepted.")
+                if dlg.dont_show_cb.isChecked():
+                    log_debug("User checked 'Don't show again'.")
+                    config["show_welcome"] = False
+                    _save_config(config)
+            else:
+                log_debug("WelcomeDialog rejected/closed.")
+
+        self._ensure_api_key()
 
     def _build_ui(self):
         central = QWidget()
