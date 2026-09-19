@@ -12,10 +12,21 @@ PROVIDER_OPENAI = "openai"
 PROVIDER_ANTHROPIC = "anthropic"
 
 MODEL_MAP = {
-    PROVIDER_GEMINI: "gemini-2.5-flash",
-    PROVIDER_OPENAI: "gpt-4o-mini",
+    PROVIDER_GEMINI: "gemini-3.8-flash",
+    PROVIDER_OPENAI: "gpt-5.6-terra",
     PROVIDER_ANTHROPIC: "claude-haiku-4-5-20251001"
 }
+
+MODEL_ENV_MAP = {
+    PROVIDER_GEMINI: "TYPO_GEMINI_MODEL",
+    PROVIDER_OPENAI: "TYPO_OPENAI_MODEL",
+    PROVIDER_ANTHROPIC: "TYPO_ANTHROPIC_MODEL",
+}
+
+
+def get_provider_model(provider):
+    override = os.environ.get(MODEL_ENV_MAP[provider], "").strip()
+    return override or MODEL_MAP[provider]
 
 BASE_ERROR_TYPES = {"spelling", "spacing", "word_choice"}
 OPTION_ERROR_TYPES = {
@@ -73,6 +84,34 @@ def get_allowed_error_types(review_options=None):
     return allowed
 
 
+def build_error_response_schema(review_options=None):
+    allowed_types = sorted(get_allowed_error_types(review_options))
+    error_properties = {
+        "page": {"type": "integer"},
+        "sentence": {"type": "string"},
+        "original": {"type": "string"},
+        "corrected": {"type": "string"},
+        "reason": {"type": "string"},
+        "errorType": {"type": "string", "enum": allowed_types},
+    }
+    return {
+        "type": "object",
+        "properties": {
+            "errors": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": error_properties,
+                    "required": list(error_properties),
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["errors"],
+        "additionalProperties": False,
+    }
+
+
 def build_system_prompt(review_options=None):
     allowed = sorted(get_allowed_error_types(review_options))
     prompt = SYSTEM_PROMPT_TEMPLATE.format(
@@ -126,7 +165,8 @@ def build_prompt_payload(doc, review_options=None):
     return {
         "system": system,
         "user": user,
-        "combined": combined
+        "combined": combined,
+        "response_schema": build_error_response_schema(review_options),
     }
 
 from urllib3.util.retry import Retry
@@ -155,12 +195,15 @@ def get_session():
             _session.mount("http://", adapter)
     return _session
 
-def call_gemini(prompt_text, api_key, model=MODEL_MAP[PROVIDER_GEMINI]):
+def call_gemini(prompt_text, api_key, model=None, response_schema=None):
+    model = model or get_provider_model(PROVIDER_GEMINI)
+    response_schema = response_schema or build_error_response_schema()
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     payload = {
         "contents": [{"parts": [{"text": prompt_text}]}],
         "generationConfig": {
             "responseMimeType": "application/json",
+            "responseJsonSchema": response_schema,
             "temperature": 0,
             "topP": 0.01,
             "topK": 1
@@ -176,7 +219,9 @@ def call_gemini(prompt_text, api_key, model=MODEL_MAP[PROVIDER_GEMINI]):
     except (KeyError, IndexError):
         return ""
 
-def call_openai(system_prompt, user_text, api_key, model=MODEL_MAP[PROVIDER_OPENAI]):
+def call_openai(system_prompt, user_text, api_key, model=None, response_schema=None):
+    model = model or get_provider_model(PROVIDER_OPENAI)
+    response_schema = response_schema or build_error_response_schema()
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
     payload = {
         "model": model,
@@ -185,7 +230,14 @@ def call_openai(system_prompt, user_text, api_key, model=MODEL_MAP[PROVIDER_OPEN
             {"role": "user", "content": user_text},
         ],
         "temperature": 0,
-        "response_format": {"type": "json_object"},
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "spelling_check_result",
+                "strict": True,
+                "schema": response_schema,
+            },
+        },
     }
     session = get_session()
     response = session.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload, timeout=60)
@@ -193,7 +245,9 @@ def call_openai(system_prompt, user_text, api_key, model=MODEL_MAP[PROVIDER_OPEN
         raise Exception(f"OpenAI request failed ({response.status_code}): {response.text}")
     return response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
 
-def call_anthropic(system_prompt, user_text, api_key, model=MODEL_MAP[PROVIDER_ANTHROPIC]):
+def call_anthropic(system_prompt, user_text, api_key, model=None, response_schema=None):
+    model = model or get_provider_model(PROVIDER_ANTHROPIC)
+    response_schema = response_schema or build_error_response_schema()
     headers = {
         "Content-Type": "application/json",
         "x-api-key": api_key,
@@ -205,6 +259,12 @@ def call_anthropic(system_prompt, user_text, api_key, model=MODEL_MAP[PROVIDER_A
         "temperature": 0,
         "system": system_prompt,
         "messages": [{"role": "user", "content": user_text}],
+        "output_config": {
+            "format": {
+                "type": "json_schema",
+                "schema": response_schema,
+            }
+        },
     }
     session = get_session()
     response = session.post("https://api.anthropic.com/v1/messages", headers=headers, json=payload, timeout=60)
@@ -292,11 +352,25 @@ class BatchProcessingError(Exception):
 
 def _call_provider(provider, payload, api_key):
     if provider == PROVIDER_OPENAI:
-        raw = call_openai(payload["system"], payload["user"], api_key)
+        raw = call_openai(
+            payload["system"],
+            payload["user"],
+            api_key,
+            response_schema=payload["response_schema"],
+        )
     elif provider == PROVIDER_ANTHROPIC:
-        raw = call_anthropic(payload["system"], payload["user"], api_key)
+        raw = call_anthropic(
+            payload["system"],
+            payload["user"],
+            api_key,
+            response_schema=payload["response_schema"],
+        )
     else:
-        raw = call_gemini(payload["combined"], api_key)
+        raw = call_gemini(
+            payload["combined"],
+            api_key,
+            response_schema=payload["response_schema"],
+        )
     return raw
 
 def _is_rate_limit_error(e):
@@ -395,12 +469,7 @@ def validate_api_key(api_key, provider=None):
     payload = build_prompt_payload(test_payload)
     
     try:
-        if provider == PROVIDER_OPENAI:
-            call_openai(payload["system"], payload["user"], api_key)
-        elif provider == PROVIDER_ANTHROPIC:
-            call_anthropic(payload["system"], payload["user"], api_key)
-        else:
-            call_gemini(payload["combined"], api_key)
+        _call_provider(provider, payload, api_key)
         return True, "Success"
     except Exception as e:
         error_msg = str(e)

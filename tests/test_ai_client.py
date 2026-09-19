@@ -3,13 +3,103 @@ import sys
 import json
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 import ai_client
+
+
+class ModelAndSchemaTests(unittest.TestCase):
+    def test_default_models_are_current_stable_choices(self):
+        self.assertEqual(
+            ai_client.MODEL_MAP[ai_client.PROVIDER_GEMINI], "gemini-3.8-flash"
+        )
+        self.assertEqual(
+            ai_client.MODEL_MAP[ai_client.PROVIDER_OPENAI], "gpt-5.6-terra"
+        )
+        self.assertEqual(
+            ai_client.MODEL_MAP[ai_client.PROVIDER_ANTHROPIC],
+            "claude-haiku-4-5-20251001",
+        )
+
+    def test_provider_model_environment_override_wins(self):
+        with patch.dict(os.environ, {"TYPO_OPENAI_MODEL": "custom-openai"}):
+            self.assertEqual(
+                ai_client.get_provider_model(ai_client.PROVIDER_OPENAI),
+                "custom-openai",
+            )
+
+    def test_blank_model_override_uses_default(self):
+        with patch.dict(os.environ, {"TYPO_GEMINI_MODEL": "   "}):
+            self.assertEqual(
+                ai_client.get_provider_model(ai_client.PROVIDER_GEMINI),
+                "gemini-3.8-flash",
+            )
+
+    def test_response_schema_uses_enabled_error_types(self):
+        schema = ai_client.build_error_response_schema({"improve_style": True})
+        error_schema = schema["properties"]["errors"]["items"]
+        self.assertEqual(
+            set(error_schema["properties"]["errorType"]["enum"]),
+            {"spelling", "spacing", "word_choice", "style"},
+        )
+        self.assertFalse(schema["additionalProperties"])
+        self.assertFalse(error_schema["additionalProperties"])
+
+
+class FakeResponse:
+    status_code = 200
+    text = ""
+
+    def __init__(self, data):
+        self._data = data
+
+    def json(self):
+        return self._data
+
+
+class ProviderStructuredOutputTests(unittest.TestCase):
+    def setUp(self):
+        self.schema = ai_client.build_error_response_schema({})
+
+    def test_gemini_sends_response_json_schema(self):
+        session = Mock()
+        session.post.return_value = FakeResponse(
+            {"candidates": [{"content": {"parts": [{"text": '{"errors":[]}'}]}}]}
+        )
+        with patch.object(ai_client, "get_session", return_value=session):
+            ai_client.call_gemini("prompt", "key", response_schema=self.schema)
+        body = session.post.call_args.kwargs["json"]
+        url = session.post.call_args.args[0]
+        self.assertIn("gemini-3.8-flash:generateContent", url)
+        self.assertEqual(body["generationConfig"]["responseJsonSchema"], self.schema)
+
+    def test_openai_uses_strict_json_schema(self):
+        session = Mock()
+        session.post.return_value = FakeResponse(
+            {"choices": [{"message": {"content": '{"errors":[]}'}}]}
+        )
+        with patch.object(ai_client, "get_session", return_value=session):
+            ai_client.call_openai("system", "user", "key", response_schema=self.schema)
+        body = session.post.call_args.kwargs["json"]
+        json_schema = body["response_format"]["json_schema"]
+        self.assertEqual(body["model"], "gpt-5.6-terra")
+        self.assertTrue(json_schema["strict"])
+        self.assertEqual(json_schema["schema"], self.schema)
+
+    def test_anthropic_uses_output_config_schema(self):
+        session = Mock()
+        session.post.return_value = FakeResponse(
+            {"content": [{"type": "text", "text": '{"errors":[]}'}]}
+        )
+        with patch.object(ai_client, "get_session", return_value=session):
+            ai_client.call_anthropic("system", "user", "key", response_schema=self.schema)
+        body = session.post.call_args.kwargs["json"]
+        self.assertEqual(body["model"], "claude-haiku-4-5-20251001")
+        self.assertEqual(body["output_config"]["format"]["schema"], self.schema)
 
 
 def make_document():
