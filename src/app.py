@@ -28,13 +28,32 @@ from PyQt6.QtWidgets import (
 from hwp_parser import parse_with_kordoc
 from doc_model import build_doc_from_parse_result
 from ai_client import (
-    run_ai_check, PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_ANTHROPIC
+    run_ai_check, get_provider_model,
+    PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_ANTHROPIC
 )
 from excel_exporter import export_to_excel
 
 SUPPORTED_EXT = ('.hwp', '.hwpx', '.pdf', '.docx', '.txt', '.doc')
 _CONFIG_FILE = os.path.expanduser("~/.misspelling_checker_config.json")
 APP_VERSION = "2.0.0"
+
+
+def build_api_key_prompt_text():
+    return (
+        "API 키를 입력해 주세요.\n\n"
+        "사용 모델:\n"
+        f"Gemini: {get_provider_model(PROVIDER_GEMINI)}\n"
+        f"OpenAI: {get_provider_model(PROVIDER_OPENAI)}\n"
+        f"Anthropic: {get_provider_model(PROVIDER_ANTHROPIC)}"
+    )
+
+
+def build_api_key_confirmation_text(provider):
+    return (
+        "API 키가 설정되었습니다.\n"
+        f"공급자: {provider}\n"
+        f"모델: {get_provider_model(provider)}"
+    )
 
 def resource_path(relative):
     if hasattr(sys, '_MEIPASS'):
@@ -615,7 +634,7 @@ class MainWindow(QMainWindow):
             key, ok = QInputDialog.getText(
                 self,
                 "API 키 입력",
-                "API 키를 입력해 주세요.\n(OpenAI, Anthropic, Gemini 키 모두 지원합니다.)",
+                build_api_key_prompt_text(),
             )
             if not ok:
                 QMessageBox.critical(self, "실행 취소", "API 키가 없어 검사를 진행할 수 없습니다.")
@@ -633,7 +652,11 @@ class MainWindow(QMainWindow):
             config["keys"][new_provider] = key
             _save_config(config)
             _apply_config(config)
-            QMessageBox.information(self, "설정 완료", f"API 키가 설정되었습니다.\n공급자: {new_provider}")
+            QMessageBox.information(
+                self,
+                "설정 완료",
+                build_api_key_confirmation_text(new_provider),
+            )
             break
 
     def _pick_files(self):
