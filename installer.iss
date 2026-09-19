@@ -85,6 +85,9 @@ begin
   APIKeyPage := CreateInputQueryPage(wpWelcome,
     'API 키 설정', 
     '',
+    'Gemini: gemini-3.8-flash' + #13#10 +
+    'OpenAI: gpt-5.6-terra' + #13#10 +
+    'Anthropic: claude-haiku-4-5-20251001' + #13#10#13#10 +
     'API 키를 입력해 주세요.' + #13#10#13#10 +
     'Gemini, OpenAI, Anthropic API 키 중 하나를 입력해 주세요.' + #13#10 +
     'Next 버튼을 누르면 유효성 검증을 위해 인터넷 연결이 필요하며 수 초 정도 소요될 수 있습니다.' + #13#10#13#10);
