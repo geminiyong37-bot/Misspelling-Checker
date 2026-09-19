@@ -19,7 +19,7 @@ log_debug("--- Logger Initialized ---")
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QStandardPaths, QTimer
 from PyQt6.QtGui import QFont, QPalette, QColor, QIcon
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QPushButton, QScrollArea, QFrame, QProgressBar,
     QFileDialog, QMessageBox, QInputDialog, QSizePolicy, QCheckBox, QDialog
 )
@@ -198,9 +198,9 @@ class DropArea(QFrame):
         title.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         title.setObjectName("dropTitle")
 
-        hint = QLabel("또는 아래 버튼을 눌러 선택")
-        hint.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-        hint.setObjectName("dropHint")
+        self.drop_hint = QLabel("또는 아래 버튼을 눌러 선택")
+        self.drop_hint.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        self.drop_hint.setProperty("textSize", "subtle")
 
         formats = QLabel("지원 형식: HWP, HWPX, PDF, TXT, DOC, DOCX")
         formats.setAlignment(Qt.AlignmentFlag.AlignHCenter)
@@ -211,7 +211,7 @@ class DropArea(QFrame):
 
         layout.addWidget(icon, alignment=Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(title)
-        layout.addWidget(hint)
+        layout.addWidget(self.drop_hint)
         layout.addWidget(formats)
         layout.addWidget(self.btn_pick, alignment=Qt.AlignmentFlag.AlignHCenter)
         self.setLayout(layout)
@@ -468,9 +468,25 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(20, 20, 20, 20)
         root.setSpacing(14)
 
+        header_row = QGridLayout()
+        header_row.setContentsMargins(0, 0, 0, 0)
         title = QLabel("문서 맞춤법 검사기")
         title.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         title.setObjectName("headerTitle")
+        header_row.addWidget(title, 0, 0, 1, 3)
+
+        self.cb_detailed_review = QCheckBox("추가 상세 검사")
+        self.cb_detailed_review.setChecked(False)
+        self.cb_detailed_review.setProperty("textSize", "subtle")
+        self.cb_detailed_review.setToolTip(
+            "날짜·숫자 표기, 순화어, 문체·표현을 함께 추가 검사합니다."
+        )
+        header_row.addWidget(
+            self.cb_detailed_review,
+            0,
+            2,
+            alignment=Qt.AlignmentFlag.AlignRight,
+        )
 
         divider = QFrame()
         divider.setFrameShape(QFrame.Shape.HLine)
@@ -479,30 +495,6 @@ class MainWindow(QMainWindow):
         self.drop_area = DropArea()
         self.drop_area.files_dropped.connect(self._on_drop)
         self.drop_area.btn_pick.clicked.connect(self._pick_files)
-
-        options_frame = QFrame()
-        options_frame.setObjectName("optionsFrame")
-        options_layout = QVBoxLayout()
-        options_layout.setContentsMargins(10, 7, 10, 7)
-        options_layout.setSpacing(5)
-        options_title = QLabel("선택 검사 (기본 꺼짐)")
-        options_title.setObjectName("optionsTitle")
-        options_row = QHBoxLayout()
-        options_row.setSpacing(12)
-
-        self.cb_date_format = QCheckBox("날짜·숫자")
-        self.cb_plain_language = QCheckBox("순화어")
-        self.cb_style = QCheckBox("문체·표현")
-        self.cb_date_format.setToolTip("날짜, 시간, 숫자 표기를 공문서 기준으로 검사합니다.")
-        self.cb_plain_language.setToolTip("어려운 행정 용어를 쉬운 말로 바꾸는 제안을 합니다.")
-        self.cb_style.setToolTip("번역투와 상투적 표현을 다듬는 제안을 합니다.")
-        for checkbox in (self.cb_date_format, self.cb_plain_language, self.cb_style):
-            checkbox.setChecked(False)
-            options_row.addWidget(checkbox)
-        options_row.addStretch(1)
-        options_layout.addWidget(options_title)
-        options_layout.addLayout(options_row)
-        options_frame.setLayout(options_layout)
 
         list_container = QFrame()
         list_container.setObjectName("listContainer")
@@ -553,10 +545,9 @@ class MainWindow(QMainWindow):
         btn_row.addStretch(1)
         btn_row.addWidget(self.btn_download)
 
-        root.addWidget(title)
+        root.addLayout(header_row)
         root.addWidget(divider)
         root.addWidget(self.drop_area)
-        root.addWidget(options_frame)
         root.addWidget(self.status_lbl)
         root.addWidget(list_container, stretch=1)
         root.addLayout(btn_row)
@@ -594,7 +585,7 @@ class MainWindow(QMainWindow):
                 padding-bottom: 4px; /* 이모티콘 수직 중앙 보정 */
             }
             #dropTitle { font-size: 12px; color: #5D4037; font-weight: 600; }
-            #dropHint { font-size: 10px; color: #5D4037; }
+            *[textSize="subtle"] { font-size: 10px; font-weight: 400; color: #5D4037; }
             #dropFormats { font-size: 9px; color: #8D6E63; }
             #listContainer { background: transparent; }
             #listScroll { border: none; }
@@ -604,8 +595,6 @@ class MainWindow(QMainWindow):
             #progressBar { background: #E6D6C7; border: 1px solid #E6D6C7; height: 6px; border-radius: 3px; }
             #progressBar::chunk { background: #C1A062; border-radius: 3px; margin: 0px; }
             #statusLabel { color: #A1887F; }
-            #optionsFrame { background: #F3E9DC; border: 1px solid #DDCDBE; border-radius: 8px; }
-            #optionsTitle { color: #6D4C41; font-size: 10px; font-weight: 700; }
             #btnPrimary { background: #C1A062; color: #5D4037; border: none; padding: 8px 24px; border-radius: 10px; font-weight: 700; }
             #btnPrimary:hover { background: #B39250; }
             #btnPrimary:pressed { background: #A88442; }
@@ -799,15 +788,15 @@ class MainWindow(QMainWindow):
             )
 
     def get_review_options(self):
+        detailed_review = self.cb_detailed_review.isChecked()
         return {
-            "check_date_format": self.cb_date_format.isChecked(),
-            "suggest_plain_language": self.cb_plain_language.isChecked(),
-            "improve_style": self.cb_style.isChecked(),
+            "check_date_format": detailed_review,
+            "suggest_plain_language": detailed_review,
+            "improve_style": detailed_review,
         }
 
     def _set_review_options_enabled(self, enabled):
-        for checkbox in (self.cb_date_format, self.cb_plain_language, self.cb_style):
-            checkbox.setEnabled(enabled)
+        self.cb_detailed_review.setEnabled(enabled)
 
     def _clear_all(self):
         if self.is_processing: return

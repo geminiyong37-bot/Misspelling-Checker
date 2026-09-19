@@ -33,7 +33,21 @@ class ReviewOptionsUiTests(unittest.TestCase):
     def setUpClass(cls):
         cls.qt_app = QApplication.instance() or QApplication([])
 
-    def test_all_optional_modes_are_unchecked_by_default(self):
+    def test_detailed_review_is_the_only_optional_checkbox_and_is_off_by_default(self):
+        window = app.MainWindow()
+        try:
+            checkboxes = window.centralWidget().findChildren(app.QCheckBox)
+            self.assertEqual([checkbox.text() for checkbox in checkboxes], ["추가 상세 검사"])
+            self.assertFalse(window.cb_detailed_review.isChecked())
+            self.assertFalse(hasattr(window, "cb_date_format"))
+            self.assertFalse(hasattr(window, "cb_plain_language"))
+            self.assertFalse(hasattr(window, "cb_style"))
+            label_texts = [label.text() for label in window.findChildren(app.QLabel)]
+            self.assertNotIn("선택 검사 (기본 꺼짐)", label_texts)
+        finally:
+            window.close()
+
+    def test_detailed_review_controls_all_optional_modes(self):
         window = app.MainWindow()
         try:
             self.assertEqual(
@@ -44,9 +58,23 @@ class ReviewOptionsUiTests(unittest.TestCase):
                     "improve_style": False,
                 },
             )
-            self.assertIn("날짜", window.cb_date_format.text())
-            self.assertIn("순화어", window.cb_plain_language.text())
-            self.assertIn("문체", window.cb_style.text())
+            window.cb_detailed_review.setChecked(True)
+            self.assertEqual(
+                window.get_review_options(),
+                {
+                    "check_date_format": True,
+                    "suggest_plain_language": True,
+                    "improve_style": True,
+                },
+            )
+        finally:
+            window.close()
+
+    def test_detailed_review_uses_the_same_font_size_as_drop_hint(self):
+        window = app.MainWindow()
+        try:
+            self.assertEqual(window.cb_detailed_review.property("textSize"), "subtle")
+            self.assertEqual(window.drop_area.drop_hint.property("textSize"), "subtle")
         finally:
             window.close()
 
