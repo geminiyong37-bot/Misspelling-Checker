@@ -35,7 +35,7 @@ HWP, HWPX, PDF 등 다양한 문서에서 오타와 문법 오류를 AI가 대�
 python -m pip install -r requirements.txt
 ```
 
-문서 파서의 기본 위치는 `C:\MyProjects\Archive\kordoc`입니다. 다른 위치를 사용할 때는 `KORDOC_HOME` 환경변수에 kordoc 디렉터리를 지정합니다.
+문서 파서는 프로젝트의 `engine/kordoc`에 포함되어 있으며 `bin/node.exe`로 실행됩니다. 다른 kordoc을 사용할 때는 `KORDOC_HOME` 환경변수에 kordoc 디렉터리를 지정합니다.
 
 ```powershell
 $env:KORDOC_HOME = "D:\tools\kordoc"

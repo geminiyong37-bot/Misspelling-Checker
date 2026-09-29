@@ -4,7 +4,14 @@ setlocal
 set SCRIPT_DIR=%~dp0
 set STAGING=%SCRIPT_DIR%Output\_staging
 set INSTALLER_OUTPUT=%STAGING%\installer
-set ISCC="C:\Inno Setup 6\ISCC.exe"
+set ISCC="C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+
+echo [0/5] Kordoc dependency install...
+call npm ci --prefix "%SCRIPT_DIR%engine\kordoc" --omit=dev --omit=optional --omit=peer --ignore-scripts --no-audit --no-fund
+if errorlevel 1 (
+    echo npm install failed - Kordoc engine
+    exit /b 1
+)
 
 echo [1/5] PyInstaller 빌드 중 (Main App)...
 pyinstaller "%SCRIPT_DIR%build.spec" --noconfirm --distpath "%STAGING%"

@@ -204,9 +204,6 @@ def call_gemini(prompt_text, api_key, model=None, response_schema=None):
         "generationConfig": {
             "responseMimeType": "application/json",
             "responseJsonSchema": response_schema,
-            "temperature": 0,
-            "topP": 0.01,
-            "topK": 1
         }
     }
     session = get_session()
@@ -229,7 +226,6 @@ def call_openai(system_prompt, user_text, api_key, model=None, response_schema=N
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_text},
         ],
-        "temperature": 0,
         "response_format": {
             "type": "json_schema",
             "json_schema": {

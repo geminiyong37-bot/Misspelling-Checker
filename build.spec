@@ -5,11 +5,11 @@ block_cipher = None
 a = Analysis(
     ['src/app.py'],
     pathex=['src'],
-    binaries=[],
+    binaries=[('bin/node.exe', 'bin')],
     datas=[
-        ('../Archive/kordoc/dist', 'kordoc/dist'),
-        ('../Archive/kordoc/node_modules', 'kordoc/node_modules'),
-        ('../Archive/kordoc/package.json', 'kordoc'),
+        ('engine/kordoc/dist', 'engine/kordoc/dist'),
+        ('engine/kordoc/node_modules', 'engine/kordoc/node_modules'),
+        ('engine/kordoc/package.json', 'engine/kordoc'),
         ('docs/공문서_지침_압축.txt', 'docs'),
         ('assets/app-icon.png', 'assets'),
     ],
@@ -52,6 +52,6 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    upx_exclude=[],
+    upx_exclude=['node.exe'],
     name='MisspellingChecker',
 )

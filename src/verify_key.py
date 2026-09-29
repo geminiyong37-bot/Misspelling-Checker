@@ -31,7 +31,7 @@ def main():
         sys.exit(0)
     else:
         # Categorize error for installer
-        if "유효하지 않은" in message or "invalid" in message.lower() or "401" in message:
+        if message == "유효하지 않은 API 키입니다.":
             print(f"FAILURE_KEY: {message}", file=sys.stderr)
             sys.exit(2)  # Invalid Key
         else:

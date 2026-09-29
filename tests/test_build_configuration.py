@@ -7,6 +7,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class BuildConfigurationTests(unittest.TestCase):
+    def test_build_bundles_repository_parser_engine(self):
+        spec = (PROJECT_ROOT / "build.spec").read_text(encoding="utf-8")
+        script = (PROJECT_ROOT / "build.bat").read_text(encoding="utf-8")
+
+        self.assertIn("engine/kordoc/dist", spec)
+        self.assertIn("engine/kordoc/node_modules", spec)
+        self.assertIn("bin/node.exe", spec)
+        self.assertNotIn("../Archive/kordoc", spec)
+        self.assertIn('npm ci --prefix "%SCRIPT_DIR%engine\\kordoc"', script)
+
     def test_installer_api_key_page_lists_provider_models(self):
         script = (PROJECT_ROOT / "installer.iss").read_text(encoding="utf-8")
 

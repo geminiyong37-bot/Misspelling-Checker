@@ -76,6 +76,8 @@ class ProviderStructuredOutputTests(unittest.TestCase):
         url = session.post.call_args.args[0]
         self.assertIn("gemini-3.8-flash:generateContent", url)
         self.assertEqual(body["generationConfig"]["responseJsonSchema"], self.schema)
+        for parameter in ("temperature", "topP", "topK"):
+            self.assertNotIn(parameter, body["generationConfig"])
 
     def test_openai_uses_strict_json_schema(self):
         session = Mock()
@@ -87,6 +89,7 @@ class ProviderStructuredOutputTests(unittest.TestCase):
         body = session.post.call_args.kwargs["json"]
         json_schema = body["response_format"]["json_schema"]
         self.assertEqual(body["model"], "gpt-5.6-terra")
+        self.assertNotIn("temperature", body)
         self.assertTrue(json_schema["strict"])
         self.assertEqual(json_schema["schema"], self.schema)
 

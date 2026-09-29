@@ -12,14 +12,23 @@ def resource_path(relative):
 def get_kordoc_path():
     """현재 실행 환경에서 사용할 kordoc CLI 경로를 반환한다."""
     if hasattr(sys, '_MEIPASS'):
-        return resource_path(os.path.join("kordoc", "dist", "cli.cjs"))
+        return resource_path(os.path.join("engine", "kordoc", "dist", "cli.js"))
 
     kordoc_home = os.environ.get("KORDOC_HOME")
     if not kordoc_home:
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        kordoc_home = os.path.abspath(os.path.join(project_root, "..", "Archive", "kordoc"))
+        kordoc_home = os.path.join(project_root, "engine", "kordoc")
 
-    return os.path.join(kordoc_home, "dist", "cli.cjs")
+    return os.path.join(kordoc_home, "dist", "cli.js")
+
+
+def get_node_path():
+    """현재 실행 환경에서 사용할 내장 Node.js 경로를 반환한다."""
+    if hasattr(sys, '_MEIPASS'):
+        return resource_path(os.path.join("bin", "node.exe"))
+
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(project_root, "bin", "node.exe")
 
 
 KORDOC_PATH = get_kordoc_path()
@@ -69,7 +78,11 @@ def parse_with_kordoc(file_path):
             "KORDOC_HOME 환경변수를 설정해 주세요."
         )
 
-    cmd = ["node", kordoc_path, abs_path, "--format", "json"]
+    node_path = get_node_path()
+    if not os.path.isfile(node_path):
+        raise FileNotFoundError(f"내장 Node.js를 찾을 수 없습니다: {node_path}")
+
+    cmd = [node_path, kordoc_path, abs_path, "--format", "json", "--silent"]
     
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', check=True)
