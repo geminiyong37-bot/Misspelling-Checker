@@ -24,6 +24,7 @@ def ai_errors_to_rows(ai_result):
         rows.append({
             "file": source,
             "page": err.get("page", 1),
+            "sentence": err.get("sentence", ""),
             "original": err.get("original", ""),
             "corrected": err.get("corrected", ""),
             "help": reason,

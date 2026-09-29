@@ -782,10 +782,15 @@ class MainWindow(QMainWindow):
             )
         else:
             self.status_lbl.setText(f"검사 완료! 총 {total_errors}건 발견.")
-            QMessageBox.information(
-                self, "검사 완료", 
-                f"검사가 완료되었습니다.\n총 {total_errors}건 발견.\n결과 다운로드 버튼을 눌러 저장하세요."
-            )
+            dialog = QMessageBox(self)
+            dialog.setWindowTitle("검사 완료")
+            dialog.setText(f"검사가 완료되었습니다.\n총 {total_errors}건 발견.")
+            dialog.setIcon(QMessageBox.Icon.Information)
+            download_button = dialog.addButton("결과 다운로드", QMessageBox.ButtonRole.ActionRole)
+            dialog.addButton("닫기", QMessageBox.ButtonRole.RejectRole)
+            dialog.exec()
+            if dialog.clickedButton() is download_button:
+                self._save_results()
 
     def get_review_options(self):
         detailed_review = self.cb_detailed_review.isChecked()

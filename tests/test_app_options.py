@@ -2,7 +2,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -127,6 +127,33 @@ class StartupFlowTests(unittest.TestCase):
 
             welcome_exec.assert_called_once()
             ensure_api_key.assert_called_once()
+        finally:
+            window.close()
+
+
+class CompletionDialogTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.qt_app = QApplication.instance() or QApplication([])
+
+    def test_download_button_in_completion_dialog_opens_save_flow(self):
+        window = app.MainWindow()
+        item_widget = Mock()
+        item_widget.status.text.return_value = "완료"
+        window.file_items = [{"widget": item_widget, "results": [{"original": "됬", "corrected": "됐"}]}]
+
+        def click_download(dialog):
+            button = next(button for button in dialog.buttons() if button.text() == "결과 다운로드")
+            button.click()
+            return 0
+
+        try:
+            with patch.object(app.QMessageBox, "information"), patch.object(
+                app.QMessageBox, "exec", click_download
+            ), patch.object(window, "_save_results") as save_results:
+                window._on_finished_all()
+
+            save_results.assert_called_once_with()
         finally:
             window.close()
 

@@ -1,6 +1,7 @@
 import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 import os
+import re
 
 FILE_COLORS = [
     "DBEAFE", "FEF3C7", "D1FAE5", "FCE7F3", "E0E7FF",
@@ -25,6 +26,28 @@ def build_rows_from_doc(doc):
             "index": idx + 1
         })
     return rows
+
+
+def _contextual_text(row):
+    sentence = row.get("sentence") or ""
+    original = row["original"]
+    corrected = row["corrected"]
+    start = sentence.find(original) if original else -1
+    if start < 0:
+        return original, corrected
+
+    end = start + len(original)
+    words = list(re.finditer(r"\S+", sentence))
+    affected = [i for i, word in enumerate(words) if word.end() > start and word.start() < end]
+    if not affected:
+        return original, corrected
+
+    context_start = words[max(0, affected[0] - 1)].start()
+    context_end = words[min(len(words) - 1, affected[-1] + 1)].end()
+    return (
+        sentence[context_start:context_end],
+        sentence[context_start:start] + corrected + sentence[end:context_end],
+    )
 
 def create_workbook(rows):
     wb = openpyxl.Workbook()
@@ -53,12 +76,13 @@ def create_workbook(rows):
     # 중복 제거 및 데이터 그룹화
     unique_errors = {}
     for row in rows:
-        key = (row["original"], row["corrected"])
+        original, corrected = _contextual_text(row)
+        key = (row["file"], original, corrected)
         if key not in unique_errors:
             unique_errors[key] = {
                 "file": row["file"],
-                "original": row["original"],
-                "corrected": row["corrected"],
+                "original": original,
+                "corrected": corrected,
                 "help": row.get("help") or row.get("reason", ""),
                 "count": 0,
                 "pages": set()
