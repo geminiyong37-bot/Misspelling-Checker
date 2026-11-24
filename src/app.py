@@ -36,7 +36,7 @@ from ai_client import (
 
 SUPPORTED_EXT = ('.hwp', '.hwpx', '.pdf', '.docx', '.txt', '.doc')
 _CONFIG_FILE = os.path.expanduser("~/.misspelling_checker_config.json")
-APP_VERSION = "2.1.1"
+APP_VERSION = "2.1.2"
 
 
 def build_api_key_prompt_text():
@@ -424,6 +424,12 @@ class CheckWorker(QThread):
 # ────────────────────────────────────────────
 
 class SingleLineElideDelegate(QStyledItemDelegate):
+    def sizeHint(self, option, index):
+        item_option = QStyleOptionViewItem(option)
+        self.initStyleOption(item_option, index)
+        item_option.features &= ~QStyleOptionViewItem.ViewItemFeature.WrapText
+        return super().sizeHint(item_option, index)
+
     def paint(self, painter, option, index):
         item_option = QStyleOptionViewItem(option)
         self.initStyleOption(item_option, index)
@@ -567,6 +573,9 @@ class MainWindow(QMainWindow):
         self.results_table.setWordWrap(True)
         self.results_table.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.results_table.setItemDelegateForColumn(
+            0, SingleLineElideDelegate(self.results_table)
+        )
+        self.results_table.setItemDelegateForColumn(
             1, SingleLineElideDelegate(self.results_table)
         )
         self.results_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -577,6 +586,14 @@ class MainWindow(QMainWindow):
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
         self.results_table.verticalHeader().setVisible(False)
+        self._results_row_resize_timer = QTimer(self)
+        self._results_row_resize_timer.setSingleShot(True)
+        self._results_row_resize_timer.timeout.connect(
+            self.results_table.resizeRowsToContents
+        )
+        self.results_table.horizontalHeader().sectionResized.connect(
+            self._schedule_results_row_resize
+        )
         self.results_table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
@@ -592,6 +609,9 @@ class MainWindow(QMainWindow):
         self.content_splitter.addWidget(self.results_panel)
         self.content_splitter.setStretchFactor(0, 1)
         self.content_splitter.setStretchFactor(1, 1)
+        self.content_splitter.splitterMoved.connect(
+            self._schedule_results_row_resize
+        )
         self.results_panel.hide()
 
         btn_row = QHBoxLayout()
@@ -685,6 +705,11 @@ class MainWindow(QMainWindow):
                 else Qt.Orientation.Vertical
             )
             self.content_splitter.setOrientation(orientation)
+            self._schedule_results_row_resize()
+
+    def _schedule_results_row_resize(self, *_):
+        if hasattr(self, "_results_row_resize_timer"):
+            self._results_row_resize_timer.start(0)
 
     def _ensure_api_key(self):
         config = _load_config()
@@ -887,7 +912,7 @@ class MainWindow(QMainWindow):
             self.content_splitter.setSizes(
                 [int(splitter_height * 0.45), int(splitter_height * 0.55)]
             )
-        self.results_table.resizeRowsToContents()
+        self._schedule_results_row_resize()
 
     def _on_finished_all(self):
         self.is_processing = False
