@@ -1,6 +1,6 @@
 [Setup]
 AppName=AI 문서 맞춤법 검사기
-AppVersion=2.0.0
+AppVersion=2.1.0
 DefaultDirName={autopf}\AI_Word_Speller
 DefaultGroupName=AI 문서 맞춤법 검사기
 OutputBaseFilename=AI_Word_Speller_Setup

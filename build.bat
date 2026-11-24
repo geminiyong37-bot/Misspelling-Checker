@@ -4,7 +4,12 @@ setlocal
 set SCRIPT_DIR=%~dp0
 set STAGING=%SCRIPT_DIR%Output\_staging
 set INSTALLER_OUTPUT=%STAGING%\installer
-set ISCC="C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+if not exist "%ISCC%" set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
+if not exist "%ISCC%" (
+    echo Inno Setup 6 ISCC.exe not found
+    exit /b 1
+)
 
 echo [0/5] Kordoc dependency install...
 call npm ci --prefix "%SCRIPT_DIR%engine\kordoc" --omit=dev --omit=optional --omit=peer --ignore-scripts --no-audit --no-fund
@@ -29,7 +34,7 @@ if errorlevel 1 (
 
 echo [3/5] 설치 파일 생성 중...
 if not exist "%INSTALLER_OUTPUT%" mkdir "%INSTALLER_OUTPUT%"
-%ISCC% /O"%INSTALLER_OUTPUT%" "%SCRIPT_DIR%installer.iss"
+"%ISCC%" /O"%INSTALLER_OUTPUT%" "%SCRIPT_DIR%installer.iss"
 if errorlevel 1 (
     echo Inno Setup 실패
     rmdir /s /q "%STAGING%"

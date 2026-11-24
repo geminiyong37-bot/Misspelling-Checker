@@ -35,7 +35,7 @@ from ai_client import (
 
 SUPPORTED_EXT = ('.hwp', '.hwpx', '.pdf', '.docx', '.txt', '.doc')
 _CONFIG_FILE = os.path.expanduser("~/.misspelling_checker_config.json")
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.1.0"
 
 
 def build_api_key_prompt_text():
