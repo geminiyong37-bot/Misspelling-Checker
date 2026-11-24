@@ -2,6 +2,16 @@ import json
 import os
 import re
 
+
+def should_highlight_error(original, corrected, note=""):
+    norm_orig = (original or "").strip().replace(" ", "")
+    norm_corr = (corrected or "").strip().replace(" ", "")
+    note_str = str(note or "")
+    if "순화" in note_str or "금액" in note_str or "단위" in note_str:
+        return False
+    return bool(norm_corr and norm_orig != norm_corr)
+
+
 def load_ai_result(file_path):
     with open(file_path, "r", encoding="utf-8") as f:
         return json.load(f)

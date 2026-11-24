@@ -30,9 +30,10 @@ from PyQt6.QtWidgets import (
 from hwp_parser import parse_with_kordoc
 from doc_model import build_doc_from_parse_result
 from ai_client import (
-    run_ai_check, get_provider_model,
+    BatchProcessingError, run_ai_check, get_provider_model,
     PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_ANTHROPIC
 )
+from ai_result_utils import should_highlight_error
 
 SUPPORTED_EXT = ('.hwp', '.hwpx', '.pdf', '.docx', '.txt', '.doc')
 _CONFIG_FILE = os.path.expanduser("~/.misspelling_checker_config.json")
@@ -393,6 +394,18 @@ class CheckWorker(QThread):
                 if self.cancel_event.is_set():
                     self.file_status.emit(item_id, "중단됨")
                     break
+
+                if isinstance(e, BatchProcessingError):
+                    for failure in e.failure_details:
+                        log_debug(
+                            f"[{item['name']}] AI batch {failure['batch']} failed; "
+                            f"first attempt: {failure['first_attempt']}; "
+                            f"retry: {failure['retry']}"
+                        )
+                else:
+                    log_debug(
+                        f"[{item['name']}] AI analysis failed ({type(e).__name__})."
+                    )
                 
                 err_str = str(e)
                 if "429" in err_str or "RateLimit" in err_str:
@@ -884,6 +897,10 @@ class MainWindow(QMainWindow):
             for column_index, value in enumerate(values):
                 cell = QTableWidgetItem(value)
                 cell.setToolTip(value)
+                if column_index in (1, 2) and should_highlight_error(
+                    values[1], values[2], values[3]
+                ):
+                    cell.setBackground(QColor("#FFE699"))
                 cell.setTextAlignment(
                     Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
                 )
