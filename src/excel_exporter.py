@@ -2,6 +2,7 @@ import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 import os
 import re
+from ai_result_utils import should_highlight_error
 
 FILE_COLORS = [
     "DBEAFE", "FEF3C7", "D1FAE5", "FCE7F3", "E0E7FF",
@@ -90,19 +91,8 @@ def create_workbook(rows):
         unique_errors[key]["count"] += 1
         unique_errors[key]["pages"].add(str(row.get("page", 1)))
 
-    def is_highlighted(original, corrected, note):
-        norm_orig = (original or "").strip().replace(" ", "")
-        norm_corr = (corrected or "").strip().replace(" ", "")
-        
-        # 순화어, 단위 관련 단순 규정 준수는 강조에서 제외
-        note_str = str(note or "")
-        if "순화" in note_str or "금액" in note_str or "단위" in note_str:
-            return False
-            
-        return bool(norm_corr and norm_orig != norm_corr)
-
     grouped_data = list(unique_errors.values())
-    grouped_data.sort(key=lambda x: (x["file"], not is_highlighted(x["original"], x["corrected"], x["help"])))
+    grouped_data.sort(key=lambda x: (x["file"], not should_highlight_error(x["original"], x["corrected"], x["help"])))
 
     file_color_map = {}
     color_idx = 0
@@ -135,7 +125,7 @@ def create_workbook(rows):
         
         prev_file = display_name
         
-        if is_highlighted(original, corrected, note):
+        if should_highlight_error(original, corrected, note):
             file_fill = PatternFill(start_color=file_bg_color, end_color=file_bg_color, fill_type="solid")
             ws.cell(row=current_row, column=2).fill = file_fill
             ws.cell(row=current_row, column=3).fill = file_fill

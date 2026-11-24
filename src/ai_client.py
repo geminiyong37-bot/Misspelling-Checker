@@ -344,7 +344,17 @@ class RateLimitError(Exception):
 
 
 class BatchProcessingError(Exception):
-    pass
+    def __init__(self, message, failure_details=None):
+        super().__init__(message)
+        self.failure_details = failure_details or []
+
+
+def _exception_summary(error, api_key):
+    message = " ".join(str(error).split())
+    if api_key:
+        message = message.replace(api_key, "[redacted]")
+    message = message[:500]
+    return f"{type(error).__name__}: {message}" if message else type(error).__name__
 
 def _call_provider(provider, payload, api_key):
     if provider == PROVIDER_OPENAI:
@@ -425,26 +435,38 @@ def run_ai_check(doc, progress_callback=None, stop_event=None, review_options=No
             try:
                 batch_num, errors = future.result()
                 results[batch_num] = errors
-            except Exception:
+            except Exception as error:
                 batch_num = futures[future]
-                failed_batches[batch_num] = batches[batch_num]
+                failed_batches[batch_num] = (batches[batch_num], error)
 
     final_failures = []
-    for batch_num, batch in sorted(failed_batches.items()):
+    for batch_num, (batch, first_error) in sorted(failed_batches.items()):
         if stop_event and stop_event.is_set():
             raise InterruptedError("Stopped")
         time.sleep(FALLBACK_RETRY_DELAY)
         try:
             _, errors = run_batch(batch_num, batch)
             results[batch_num] = errors
-        except Exception:
-            final_failures.append(batch_num)
+        except Exception as retry_error:
+            final_failures.append((batch_num, first_error, retry_error))
 
     if final_failures:
-        failed_numbers = ", ".join(str(index + 1) for index in final_failures)
+        failed_numbers = ", ".join(
+            str(batch_num + 1)
+            for batch_num, _, _ in final_failures
+        )
+        failure_details = [
+            {
+                "batch": batch_num + 1,
+                "first_attempt": _exception_summary(first_error, api_key),
+                "retry": _exception_summary(retry_error, api_key),
+            }
+            for batch_num, first_error, retry_error in final_failures
+        ]
         raise BatchProcessingError(
             f"AI 배치 처리 실패 ({len(final_failures)}/{total_batches}, 배치: {failed_numbers}). "
-            "네트워크 또는 API 상태를 확인한 뒤 다시 검사해 주세요."
+            "네트워크 또는 API 상태를 확인한 뒤 다시 검사해 주세요.",
+            failure_details=failure_details,
         )
 
     return [err for i in sorted(results) for err in results[i]]
