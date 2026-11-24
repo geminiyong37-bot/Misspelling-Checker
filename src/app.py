@@ -22,7 +22,8 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QPushButton, QScrollArea, QFrame, QProgressBar,
     QFileDialog, QMessageBox, QInputDialog, QSizePolicy, QCheckBox, QDialog,
-    QHeaderView, QSplitter, QTableWidget, QTableWidgetItem
+    QHeaderView, QSplitter, QStyle, QStyledItemDelegate, QStyleOptionViewItem,
+    QTableWidget, QTableWidgetItem
 )
 
 # Engine modules from misspelling checker
@@ -35,7 +36,7 @@ from ai_client import (
 
 SUPPORTED_EXT = ('.hwp', '.hwpx', '.pdf', '.docx', '.txt', '.doc')
 _CONFIG_FILE = os.path.expanduser("~/.misspelling_checker_config.json")
-APP_VERSION = "2.1.0"
+APP_VERSION = "2.1.1"
 
 
 def build_api_key_prompt_text():
@@ -422,6 +423,25 @@ class CheckWorker(QThread):
 # Main Window
 # ────────────────────────────────────────────
 
+class SingleLineElideDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        item_option = QStyleOptionViewItem(option)
+        self.initStyleOption(item_option, index)
+        item_option.features &= ~QStyleOptionViewItem.ViewItemFeature.WrapText
+        item_option.textElideMode = Qt.TextElideMode.ElideRight
+        style = (
+            item_option.widget.style()
+            if item_option.widget
+            else QApplication.style()
+        )
+        style.drawControl(
+            QStyle.ControlElement.CE_ItemViewItem,
+            item_option,
+            painter,
+            item_option.widget,
+        )
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -500,8 +520,8 @@ class MainWindow(QMainWindow):
         list_container = QFrame()
         list_container.setObjectName("listContainer")
         list_layout = QVBoxLayout()
-        list_layout.setContentsMargins(0, 4, 0, 0)
-        list_layout.setSpacing(0)
+        list_layout.setContentsMargins(0, 0, 0, 0)
+        list_layout.setSpacing(10)
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -517,12 +537,15 @@ class MainWindow(QMainWindow):
         self.list_inner.setLayout(self.list_inner_layout)
         self.scroll.setWidget(self.list_inner)
 
-        list_layout.addWidget(self.scroll)
-        list_container.setLayout(list_layout)
-
         self.status_lbl = QLabel("업로드된 문서가 없습니다.")
         self.status_lbl.setObjectName("statusLabel")
         self.status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_lbl.setWordWrap(True)
+
+        list_layout.addWidget(self.drop_area)
+        list_layout.addWidget(self.status_lbl)
+        list_layout.addWidget(self.scroll, stretch=1)
+        list_container.setLayout(list_layout)
 
         self.results_panel = QFrame()
         self.results_panel.setObjectName("resultsPanel")
@@ -543,6 +566,9 @@ class MainWindow(QMainWindow):
         )
         self.results_table.setWordWrap(True)
         self.results_table.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self.results_table.setItemDelegateForColumn(
+            1, SingleLineElideDelegate(self.results_table)
+        )
         self.results_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.results_table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
@@ -587,8 +613,6 @@ class MainWindow(QMainWindow):
 
         root.addLayout(header_row)
         root.addWidget(divider)
-        root.addWidget(self.drop_area)
-        root.addWidget(self.status_lbl)
         root.addWidget(self.content_splitter, stretch=1)
         root.addLayout(btn_row)
 
@@ -836,7 +860,7 @@ class MainWindow(QMainWindow):
                 cell = QTableWidgetItem(value)
                 cell.setToolTip(value)
                 cell.setTextAlignment(
-                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
                 )
                 self.results_table.setItem(row_index, column_index, cell)
 
