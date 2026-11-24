@@ -136,24 +136,23 @@ class CompletionDialogTests(unittest.TestCase):
     def setUpClass(cls):
         cls.qt_app = QApplication.instance() or QApplication([])
 
-    def test_download_button_in_completion_dialog_opens_save_flow(self):
+    def test_completion_shows_inline_results_without_dialog(self):
         window = app.MainWindow()
         item_widget = Mock()
         item_widget.status.text.return_value = "완료"
         window.file_items = [{"widget": item_widget, "results": [{"original": "됬", "corrected": "됐"}]}]
 
-        def click_download(dialog):
-            button = next(button for button in dialog.buttons() if button.text() == "결과 다운로드")
-            button.click()
-            return 0
-
         try:
-            with patch.object(app.QMessageBox, "information"), patch.object(
-                app.QMessageBox, "exec", click_download
-            ), patch.object(window, "_save_results") as save_results:
+            with patch.object(app.QMessageBox, "information") as information, patch.object(
+                app.QMessageBox, "warning"
+            ) as warning:
                 window._on_finished_all()
 
-            save_results.assert_called_once_with()
+            self.assertEqual(window.results_title.text(), "검사 결과 (1건)")
+            self.assertEqual(window.results_table.item(0, 1).text(), "됬")
+            self.assertFalse(window.results_panel.isHidden())
+            information.assert_not_called()
+            warning.assert_not_called()
         finally:
             window.close()
 

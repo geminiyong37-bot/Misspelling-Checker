@@ -16,12 +16,13 @@ def log_debug(msg):
         pass
 log_debug("--- Logger Initialized ---")
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QStandardPaths, QTimer
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QPalette, QColor, QIcon
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QPushButton, QScrollArea, QFrame, QProgressBar,
-    QFileDialog, QMessageBox, QInputDialog, QSizePolicy, QCheckBox, QDialog
+    QFileDialog, QMessageBox, QInputDialog, QSizePolicy, QCheckBox, QDialog,
+    QHeaderView, QSplitter, QTableWidget, QTableWidgetItem
 )
 
 # Engine modules from misspelling checker
@@ -31,7 +32,6 @@ from ai_client import (
     run_ai_check, get_provider_model,
     PROVIDER_GEMINI, PROVIDER_OPENAI, PROVIDER_ANTHROPIC
 )
-from excel_exporter import export_to_excel
 
 SUPPORTED_EXT = ('.hwp', '.hwpx', '.pdf', '.docx', '.txt', '.doc')
 _CONFIG_FILE = os.path.expanduser("~/.misspelling_checker_config.json")
@@ -429,7 +429,8 @@ class MainWindow(QMainWindow):
         icon_path = resource_path(os.path.join("assets", "app-icon.png"))
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
-        self.setFixedSize(440, 720)
+        self.setMinimumSize(440, 600)
+        self.resize(440, 720)
         self._apply_theme()
         self._build_ui()
 
@@ -523,6 +524,50 @@ class MainWindow(QMainWindow):
         self.status_lbl.setObjectName("statusLabel")
         self.status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        self.results_panel = QFrame()
+        self.results_panel.setObjectName("resultsPanel")
+        results_layout = QVBoxLayout(self.results_panel)
+        results_layout.setContentsMargins(12, 12, 12, 12)
+        results_layout.setSpacing(8)
+
+        self.results_title = QLabel("검사 결과 (0건)")
+        self.results_title.setObjectName("resultsTitle")
+        self.results_empty_label = QLabel("검사 결과가 없습니다.")
+        self.results_empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.results_empty_label.setWordWrap(True)
+
+        self.results_table = QTableWidget(0, 4)
+        self.results_table.setObjectName("resultsTable")
+        self.results_table.setHorizontalHeaderLabels(
+            ["문서명", "수정 전", "수정 후", "비고"]
+        )
+        self.results_table.setWordWrap(True)
+        self.results_table.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self.results_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.results_table.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
+        self.results_table.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.results_table.verticalHeader().setVisible(False)
+        self.results_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        self.results_table.hide()
+
+        results_layout.addWidget(self.results_title)
+        results_layout.addWidget(self.results_empty_label, stretch=1)
+        results_layout.addWidget(self.results_table, stretch=1)
+
+        self.content_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.content_splitter.setChildrenCollapsible(False)
+        self.content_splitter.addWidget(list_container)
+        self.content_splitter.addWidget(self.results_panel)
+        self.content_splitter.setStretchFactor(0, 1)
+        self.content_splitter.setStretchFactor(1, 1)
+        self.results_panel.hide()
+
         btn_row = QHBoxLayout()
         self.btn_clear = QPushButton("초기화")
         self.btn_clear.setObjectName("btnSecondary")
@@ -530,26 +575,21 @@ class MainWindow(QMainWindow):
         self.btn_stop = QPushButton("강제 중단")
         self.btn_stop.setObjectName("btnDanger")
         self.btn_stop.setFont(QFont("맑은 고딕", 9, QFont.Weight.Bold))
-        self.btn_download = QPushButton("결과 다운로드")
-        self.btn_download.setObjectName("btnPrimary")
-        self.btn_download.setFont(QFont("맑은 고딕", 9, QFont.Weight.Bold))
         self.btn_clear.setFixedWidth(100)
         self.btn_stop.setFixedWidth(100)
 
         self.btn_clear.clicked.connect(self._clear_all)
         self.btn_stop.clicked.connect(self._stop_checking)
-        self.btn_download.clicked.connect(self._save_results)
 
         btn_row.addWidget(self.btn_clear)
         btn_row.addWidget(self.btn_stop)
         btn_row.addStretch(1)
-        btn_row.addWidget(self.btn_download)
 
         root.addLayout(header_row)
         root.addWidget(divider)
         root.addWidget(self.drop_area)
         root.addWidget(self.status_lbl)
-        root.addWidget(list_container, stretch=1)
+        root.addWidget(self.content_splitter, stretch=1)
         root.addLayout(btn_row)
 
         central.setLayout(root)
@@ -589,6 +629,9 @@ class MainWindow(QMainWindow):
             #dropFormats { font-size: 9px; color: #8D6E63; }
             #listContainer { background: transparent; }
             #listScroll { border: none; }
+            #resultsPanel { background: #F7F0E6; border: 1px solid #DDCDBE; border-radius: 8px; }
+            #resultsTitle { color: #5D4037; font-size: 13px; font-weight: 700; }
+            #resultsTable { background: #FDF9F0; gridline-color: #E3D6C8; }
             #fileItem { background: #F3E9DC; border: 1px solid #DDCDBE; border-radius: 8px; }
             #fileName { font-weight: 600; color: #5D4037; }
             #fileStatus { font-size: 10px; color: #A1887F; }
@@ -608,6 +651,16 @@ class MainWindow(QMainWindow):
             #btnDanger:hover { background: #A82E0B; }
             #btnDanger:pressed { background: #922608; }
         """)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "content_splitter"):
+            orientation = (
+                Qt.Orientation.Horizontal
+                if self.width() >= 960
+                else Qt.Orientation.Vertical
+            )
+            self.content_splitter.setOrientation(orientation)
 
     def _ensure_api_key(self):
         config = _load_config()
@@ -762,6 +815,56 @@ class MainWindow(QMainWindow):
     def _on_overall(self, text):
         self.status_lbl.setText(text)
 
+    def _show_results_panel(self):
+        results = [
+            result
+            for item in self.file_items
+            for result in item.get("results", [])
+        ]
+        self.results_title.setText(f"검사 결과 ({len(results)}건)")
+        self.results_table.setRowCount(len(results))
+
+        for row_index, result in enumerate(results):
+            filename = result.get("file") or "알 수 없는 문서"
+            values = (
+                os.path.basename(str(filename)),
+                str(result.get("original") or ""),
+                str(result.get("corrected") or ""),
+                str(result.get("help") or result.get("reason") or ""),
+            )
+            for column_index, value in enumerate(values):
+                cell = QTableWidgetItem(value)
+                cell.setToolTip(value)
+                cell.setTextAlignment(
+                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+                )
+                self.results_table.setItem(row_index, column_index, cell)
+
+        self.results_empty_label.setVisible(not results)
+        self.results_table.setVisible(bool(results))
+        self.results_panel.show()
+
+        screen = self.screen()
+        if screen is not None:
+            available = screen.availableGeometry()
+            width = min(1100, available.width())
+            height = min(max(self.height(), 720), available.height())
+            left = min(max(self.x(), available.left()), available.right() - width + 1)
+            top = min(max(self.y(), available.top()), available.bottom() - height + 1)
+            self.setGeometry(left, top, width, height)
+
+        if self.content_splitter.orientation() == Qt.Orientation.Horizontal:
+            splitter_width = self.content_splitter.width()
+            self.content_splitter.setSizes(
+                [int(splitter_width * 0.4), int(splitter_width * 0.6)]
+            )
+        else:
+            splitter_height = self.content_splitter.height()
+            self.content_splitter.setSizes(
+                [int(splitter_height * 0.45), int(splitter_height * 0.55)]
+            )
+        self.results_table.resizeRowsToContents()
+
     def _on_finished_all(self):
         self.is_processing = False
         self._set_review_options_enabled(True)
@@ -771,26 +874,18 @@ class MainWindow(QMainWindow):
             
         # [IMPROVED] Check if any item was manually or unexpectedly stopped
         is_stopped = any(i["widget"].status.text() == "중단됨" for i in self.file_items)
+        self._show_results_panel()
         
         if is_stopped:
-            self.status_lbl.setText(f"중단됨. 현재까지 {total_errors}건 발견.")
-            QMessageBox.warning(
-                self, "검사 중단", 
-                f"사용자에 의해 검사가 중단되었습니다.\n"
-                f"현재까지 {total_errors}건의 오류를 발견했습니다.\n"
-                "결과 다운로드 버튼을 눌러 지금까지의 결과를 저장할 수 있습니다."
+            self.status_lbl.setText(
+                f"검사가 중단되었습니다. 현재까지 {total_errors}건을 발견했습니다. "
+                "오른쪽 결과 패널에서 확인해 주세요."
             )
         else:
-            self.status_lbl.setText(f"검사 완료! 총 {total_errors}건 발견.")
-            dialog = QMessageBox(self)
-            dialog.setWindowTitle("검사 완료")
-            dialog.setText(f"검사가 완료되었습니다.\n총 {total_errors}건 발견.")
-            dialog.setIcon(QMessageBox.Icon.Information)
-            download_button = dialog.addButton("결과 다운로드", QMessageBox.ButtonRole.ActionRole)
-            dialog.addButton("닫기", QMessageBox.ButtonRole.RejectRole)
-            dialog.exec()
-            if dialog.clickedButton() is download_button:
-                self._save_results()
+            self.status_lbl.setText(
+                f"검사가 완료되었습니다. 총 {total_errors}건을 발견했습니다. "
+                "오른쪽 결과 패널에서 확인해 주세요."
+            )
 
     def get_review_options(self):
         detailed_review = self.cb_detailed_review.isChecked()
@@ -809,44 +904,13 @@ class MainWindow(QMainWindow):
             item["widget"].setParent(None)
         self.file_items.clear()
         self.all_results.clear()
+        self.results_table.setRowCount(0)
+        self.results_title.setText("검사 결과 (0건)")
+        self.results_empty_label.show()
+        self.results_table.hide()
+        self.results_panel.hide()
+        self.resize(440, 720)
         self.status_lbl.setText("업로드된 문서가 없습니다.")
-
-    def _save_results(self):
-        if not self.file_items:
-            QMessageBox.information(self, "알림", "저장할 검사 결과가 없습니다.")
-            return
-        
-        all_results = []
-        for item in self.file_items:
-            all_results.extend(item.get("results", []))
-            
-        if not all_results:
-            QMessageBox.information(self, "알림", "저장할 검사 결과가 없습니다.")
-            return
-
-        desktop_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DesktopLocation)
-        if not desktop_dir:
-            desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
-            
-        import datetime
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_path = os.path.join(desktop_dir, f"맞춤법검사결과_{timestamp}.xlsx")
-        
-        save_path, _ = QFileDialog.getSaveFileName(
-            self, "검사결과 저장", default_path, "Excel Files (*.xlsx)"
-        )
-        if not save_path:
-            return
-            
-        try:
-            log_debug(f"Exporting results to: {save_path}")
-            # excel_exporter.py 의 export_to_excel 사용 (버그 수정)
-            export_to_excel(all_results, save_path)
-            log_debug("Excel export successful.")
-            QMessageBox.information(self, "저장 완료", f"저장되었습니다.\n{save_path}")
-        except Exception as e:
-            log_debug(f"Excel export failed: {e}")
-            QMessageBox.critical(self, "저장 오류", str(e))
 
 def main():
     try:
